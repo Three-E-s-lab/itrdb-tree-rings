@@ -540,7 +540,7 @@ def parse_tucson_header_lines(text: str) -> Dict[str, Optional[str]]:
                 out["elevation_m"] = m.group(1)
                 break
 
-    # keep your existing logic (province/site_name/years) but on more header
+    # keep existing logic (province/site_name/years) but on more header
     lines = [ln.strip() for ln in text.splitlines()[:200]]  # scan a bit more
     for line in lines:
         line_upper = line.upper()
@@ -618,12 +618,7 @@ def parse_from_measurement_header(text: str, filename: str) -> Dict[str, Optiona
     
     return tucson_data
 
-def find_companion_metadata_file_remote(
-    entry: FileEntry,
-    files_by_dir_index: Dict,
-    session: OptimizedSession,
-    read_bytes: int = 16384
-) -> Optional[str]:
+def find_companion_metadata_file_remote(entry: FileEntry, files_by_dir_index: Dict, session: OptimizedSession, read_bytes: int = 16384) -> Optional[str]:
     """
     Return RELATIVE PATH (within root) to the companion NOAA metadata file
     for the given measurement entry (.rwl/.rwt). We use:
