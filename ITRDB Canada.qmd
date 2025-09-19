@@ -1,0 +1,38 @@
+**ITRDB Canada Fetcher — Overview**
+
+**Purpose**
+Automates the retrieval and cleaning of tree-ring data from NOAA/NCEI’s ITRDB Canada archive. Produces a manifest with rich metadata, ensuring files are properly paired with their companion NOAA templates.
+
+**Workflow**
+
+1. **Crawl** NOAA directories (measurements, chronologies).
+2. **Index** each folder’s files.
+3. **Analyze headers** in parallel (read only first 16KB).
+
+   * Tucson (`.rwl/.rwt`): compact coords, species codes, site info.
+   * NOAA template (`*-noaa.txt`): full metadata.
+   * Merge, preferring NOAA values.
+4. **Province detection:** pattern → alias → bounding box.
+5. **Score quality:** site + species + coords + years (+bonus if NOAA template present).
+6. **Manifest CSV:** consistent fields (site, species, coords, province, years, etc.).
+7. **Download (optional):** parallel, resumable, size-sorted if desired.
+
+**Why this matters**
+
+* Avoids manual pairing of `.rwl` with NOAA files.
+* Ensures **complete + consistent metadata** (lat/lon, species, years).
+* Flags **high-quality vs incomplete** datasets.
+* Provides a **ready-to-use dataset** for analysis across provinces.
+
+**Outputs**
+
+* `itrdb_canada_manifest.csv` with normalized fields.
+* Downloaded files stored by province and root.
+* Console reports: quality distribution, species counts, province coverage.
+
+**Key Features**
+
+* Remote-aware NOAA companion detection.
+* Multiple coordinate parsing strategies.
+* Quality scoring system.
+* Efficient + fault-tolerant network handling.

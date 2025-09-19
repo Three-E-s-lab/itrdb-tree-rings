@@ -5,7 +5,12 @@ __pycache__/
 
 # C extensions
 *.so
+# files
+ITRDB Canada_files/
+README_files/
 
+# Fetched data
+itrdb_canada
 # Distribution / packaging
 .Python
 build/
