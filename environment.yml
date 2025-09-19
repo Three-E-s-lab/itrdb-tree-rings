@@ -1,4 +1,4 @@
-name: itrb-gee
+name: itrdb-gee
 channels:
   - conda-forge
   - defaults
