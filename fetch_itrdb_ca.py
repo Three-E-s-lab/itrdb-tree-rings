@@ -16,6 +16,9 @@ Features:
 
 Usage:
     python fetch_itrdb_ca.py --province all --max-workers 16 --resume
+    
+Time:
+    aprox. ~7 mins (5.5 mins crawling, 1.5ish mins download) with 16 workers
 """
 
 from __future__ import annotations
