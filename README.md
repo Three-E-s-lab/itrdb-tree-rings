@@ -1,90 +1,105 @@
-# ITRDB Canada Tree-Ring Fetcher
+# ITRDB Canada Tree-Ring Pipeline
 
-This repository provides a Python tool to **crawl, parse, and download tree-ring measurement files** from the [NOAA/NCEI International Tree-Ring Data Bank (ITRDB)](https://www.ncei.noaa.gov/products/paleoclimatology/tree-ring).  
-It builds a **clean manifest** of metadata (site, species, years, lat/lon, elevation, province) and can also **download** the files for local use.
-
----
-
-## Why not use the NOAA API?
-
-The official **NOAA Paleo Search API** (`/paleo-search/data/search.json`) is currently **down/unreliable**.  
-
-Instead, this tool:
-
-- Crawls the **ITRDB Canada directory structure directly** via HTTPS. [Link here](https://www.ncei.noaa.gov/pub/data/paleo/treering/measurements/northamerica/canada/).
-- Reads NOAA’s own **template metadata files** (`*-noaa.txt`, `*-rwl-noaa.txt`).
-- Matches each `.rwl/.rwt` measurement file with the correct companion template using the `# Related_Online_Resource` link inside headers.
-- Extracts robust metadata without relying on the API.
-
-This makes the fetcher more **resilient** and ensures access to Canadian datasets even when the API is unavailable.
+Tools and notebooks for assembling a clean dataset of Canadian tree-ring measurements from the NOAA/NCEI International Tree-Ring Data Bank (ITRDB) and exploring links with ERA5 climate drivers.
 
 ---
 
-## Features
+## Project Goals
+- Mirror the ITRDB Canada archive locally with resilient HTTP crawling.
+- Normalize NOAA template metadata and ring-width measurements for analysis.
+- Build region-aware summaries and coordinate lookups for climate joins.
+- Prototype growth–climate relationships (e.g., growing degree days) in notebooks.
 
-- Smart directory **crawl** of ITRDB Canada (measurements + chronologies).
-- **Remote-aware companion detection** for NOAA metadata templates.
-- **Robust coordinate parsing**:
-  - NOAA bounds midpoints,
-  - Tucson compact format (`5035-12248` → 50.35, -122.48),
-  - DMS and decimal fallbacks.
-- **Province detection** (pattern, alias, bounding box).
-- **Quality scoring** (0–100) based on metadata completeness.
-- **Manifest CSV** output with normalized fields.
-- Optional **parallel downloads with resume**.
+## Workflow
+1. **Fetch NOAA-formatted series** (`*-rwl-noaa.txt`) directly from the public archive using `fetch_itrdb_ca_noaa.py`. The crawler discovers companion metadata, tracks provenance, and can resume partial downloads.
+2. **Extract ring-width tables** with `extract_tree_rings.py`. The extractor standardizes units, enforces quality flags, validates coordinates, and stores tidy parquet/CSV outputs alongside an enriched manifest.
+3. **Explore and model** with notebooks in the repo:
+   - `EDA.ipynb` — initial manifest checks, spatial summaries, and coverage plots.
+   - `ERA5_GDD_TreeGrowth.ipynb` — link sites to ERA5 gridded temperature data and compute growing degree day metrics.
+   - `RB_Copy_of_Optimized_ERA5Land_Oct3_4.ipynb` / `test_DuckDB.ipynb` — experiments with scalable querying and climate retrieval.
 
----
+Each stage can run independently; artifacts flow through `itrdb_canada_noaa/` (raw) → `ring_width_output_new/` (processed) → `exploration_plots/` & notebooks (analysis).
 
-## Installation
-
-Clone the repo and create the environment:
-
-```bash
-git clone https://github.com/<your-org>/ITRDB-TREE-RINGS.git
-cd ITRDB-TREE-RINGS
-conda env create -f environment.yml
-conda activate itrdb-canada
+## Repository Layout
+```
+.
+├── fetch_itrdb_ca_noaa.py       # Multithreaded crawler + manifest builder for NOAA templates
+├── extract_tree_rings.py        # Parser/validator for ring widths & metadata harmonization
+├── itrdb_canada_noaa/           # Downloaded NOAA-formatted measurement files + manifest CSV
+├── ring_width_output_new/       # Processed tidy tables (per-site parquet/CSV, metadata joins)
+├── data/                        # Ancillary GIS layers (e.g., Canadian provincial boundaries)
+├── exploration_plots/           # Derived figures cached from notebooks (optional)
+├── *.ipynb                      # Exploratory data analysis and climate-integration notebooks
+├── environment.yml              # Conda environment with geospatial + climate tooling
+├── LICENSE
+└── README.md                    # You are here
 ```
 
-## Usage
-
-Scan only (build manifest, no downloads):
-
-```bash
-python fetch_itrdb_ca.py --province all --roots measurements --scan-only
-```
-
-Download with resume:
+## Environment Setup
+The project expects Python 3.11 with geospatial and Earth Engine dependencies. Create the Conda environment listed in `environment.yml`:
 
 ```bash
-python fetch_itrdb_ca.py --province bc,ab --roots both --resume --max-workers 16
+mamba env create -f environment.yml
+conda activate itrdb-gee
 ```
 
-Key options:
+If `mamba` is unavailable, replace the first command with `conda env create` (installation takes longer because of heavy geospatial stacks).
 
-- --province: comma-separated list (bc,ab,sk,...) or all.
-- --roots: measurements, chronologies, or both.
-- --scan-only: build manifest only, skip downloads.
-- --resume: continue partial .part downloads.
-- --small-first: prioritize small files.
-- --max-size-mb: skip oversized files.
-- --verbose: debug logging
+## Fetching NOAA Files
+The fetcher only downloads NOAA template files (`*-rwl-noaa.txt`) because they embed both metadata and measurements.
 
-## Outputs
+```bash
+python fetch_itrdb_ca_noaa.py \
+  --roots measurements \
+  --manifest itrdb_canada_noaa/itrdb_canada_noaa_manifest.csv \
+  --data-dir itrdb_canada_noaa \
+  --max-workers 16 \
+  --resume
+```
 
-1. **Manifest CSV** (default: `itrdb_canada_manifest.csv`):
-   Includes `site_code`, `site_name`, `species_code`, `lat/lon`, `elevation_m`, `years`, `province`, `quality_score`, `detection_method`, etc.
+Key flags:
+- `--roots {measurements,chronologies,both}` to pick archive branches.
+- `--scan-only` to rebuild the manifest without re-downloading files.
+- `--max-workers` controls concurrent requests; tune based on bandwidth.
+- `--resume` skips files already fetched completely.
 
-2. **Downloaded files** (if not `--scan-only`):
-   Saved under:
+The script emits a manifest CSV with crawl diagnostics, bounding boxes, and metadata quality scores.
 
-   ```text
-   ./itrdb_canada/<PROVINCE>/<root>/<relative_path_from_NOAA>/
-   ```
+## Processing Ring-Width Series
+Convert the raw NOAA text files into tidy data and enrich metadata for modeling:
 
-3. **Console reports**:
+```bash
+python extract_tree_rings.py \
+  --manifest itrdb_canada_noaa/itrdb_canada_noaa_manifest.csv \
+  --data-dir itrdb_canada_noaa \
+  --output-dir ring_width_output_new \
+  --log-level INFO
+```
 
-- Quality distribution (excellent/good/fair/poor).
-- Metadata availability (with vs. without NOAA companion).
-- Top species codes.
-- Per-province summary (total, high quality, coords, species coverage).
+Highlights:
+- Detects measurement units via end-of-series markers and converts to millimetres.
+- Drops sentinel values (`-9999`, `999`, etc.) and enforces range checks on years, widths, and coordinates.
+- Writes per-site parquet/CSV files plus a consolidated `ring_width_index.parquet` (if enabled) for quicker notebook loads.
+- Produces a JSON summary of skipped files and reason codes for QA.
+
+## Notebooks & Analysis
+Notebooks assume the processed outputs are present. They rely on `geopandas`, `rioxarray`, and Earth Engine libraries from the Conda environment.
+
+Typical flow:
+1. Load the manifest + processed ring widths.
+2. Join against shapefiles in `data/` for provincial summaries.
+3. Query ERA5 Land or ERA5-Land Monthly, compute climate indicators, and visualize correlations.
+
+Generated plots can be cached under `exploration_plots/`; leaving the directory empty is fine.
+
+## Data & Storage Notes
+- `itrdb_canada_noaa/` can grow beyond 1 GB; consider pruning unused provinces.
+- The shapefile in `data/` (`lpr_000b16a_e.*`) provides Canadian census divisions and is used for spatial joins.
+- Outputs in `ring_width_output_new/` are safe to delete and regenerate.
+
+## Contributing / Next Steps
+- Automate ERA5 downloads (currently notebook-driven) into a reproducible script.
+- Add tests for `extract_tree_rings.py` parsing edge cases and unit conversions.
+- Extend manifests with chronologies once validation rules are finalized.
+
+Feel free to open issues or PRs when you spot data-quality problems or want to add new climate integrations.

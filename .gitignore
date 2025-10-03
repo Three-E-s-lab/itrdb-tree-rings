@@ -10,7 +10,8 @@ ITRDB Canada_files/
 README_files/
 
 # Fetched data
-itrdb_canada
+itrdb_canada_noaa
+ring_width_output_new
 # Distribution / packaging
 .Python
 build/
