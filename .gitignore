@@ -12,6 +12,7 @@ README_files/
 # Fetched data
 itrdb_canada_noaa
 ring_width_output_new
+data
 # Distribution / packaging
 .Python
 build/
